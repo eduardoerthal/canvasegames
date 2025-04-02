@@ -1,4 +1,4 @@
 # canvasegames
 
-Leonardo Pereira de Lara
-Eduardo Erthal de Oliveira
+* Leonardo Pereira de Lara
+* Eduardo Erthal de Oliveira
