@@ -1,191 +1,306 @@
-let subPos;
-let subVel;
-let obstacles = [];
-let wallThickness = 40;
-let gif;
-let gifDisplayed = false;
-let subImg;
-let deathCount = 0;
-let gameStarted = false;
+let bolhas = [];
+let explosoes = [];
+let pontos = 0;
+let vidas = 3;
+let jogoAtivo = true;
+
+let congelado = false;
+let congelarTempo = 0;
+
+let bolhaTamanhoMultiplicador = 1;
+let tamanhoMultiplicadorTempo = 0;
+
+// Adicione estas variáveis para a imagem do macaco
+let macacoImg;
+let anguloMacaco = 0;
+let mostrarMacaco = true;
+let macacoTempo = 0;
 
 function preload() {
-  subImg = loadImage('submarine.png');
+  macacoImg = loadImage('macacotiro2.png');
 }
 
 function setup() {
-  createCanvas(600, 600);
-  setupGame();
-  gif = createImg('https://media1.tenor.com/m/z6HrXSWAouAAAAAC/cuphead-meme.gif');
-  gif.hide();
+  createCanvas(800, 600);
+  textFont('Arial', 24);
+  reiniciarJogo();
 }
 
 function draw() {
-  background(0);
+  background(0, 150, 255);
 
-  if (!gameStarted) {
-    showStartScreen();
+  if (jogoAtivo) {
+    // Atualiza congelamento
+    if (congelado) {
+      congelarTempo--;
+      if (congelarTempo <= 0) {
+        congelado = false;
+      }
+    }
+
+    // Atualiza temporário de tamanho aumentado
+    if (tamanhoMultiplicadorTempo > 0) {
+      tamanhoMultiplicadorTempo--;
+      if (tamanhoMultiplicadorTempo <= 0) {
+        bolhaTamanhoMultiplicador = 1;
+      }
+    }
+
+
+    for (let i = bolhas.length - 1; i >= 0; i--) {
+      if (!congelado) bolhas[i].mover();
+      bolhas[i].mostrar();
+
+      if (bolhas[i].estourada) {
+        explosoes.push(new Explosao(bolhas[i].x, bolhas[i].y, bolhas[i].r));
+        // Executa efeito especial das bolhas especiais
+        if (bolhas[i].tipo === 'roxa') {
+          congelado = true;
+          congelarTempo = 120;
+        } else if (bolhas[i].tipo === 'amarela') {
+          bolhaTamanhoMultiplicador = 1.5;
+          tamanhoMultiplicadorTempo = 180;
+        } else if (bolhas[i].tipo === 'verde') {
+          vidas = min(vidas + 1, 5);
+        } else if (bolhas[i].tipo === 'azul') {
+          pontos += 2;
+        }
+
+        bolhas.splice(i, 1);
+
+        // Garante pelo menos 5 bolhas normais vivas
+        if (contarNormais() < 5) {
+          bolhas.push(new Bolha('normal'));
+        } else {
+          bolhas.push(new Bolha(escolherTipoBolha()));
+        }
+      }
+    }
+
+    for (let i = explosoes.length - 1; i >= 0; i--) {
+      explosoes[i].atualizar();
+      explosoes[i].mostrar();
+      if (explosoes[i].acabou()) {
+        explosoes.splice(i, 1);
+      }
+    }
+
+    // Mostrar pontos e vidas
+    fill(255);
+    textSize(24);
+    text("Pontos: " + pontos, 10, 30);
+    text("Vidas: " + vidas, 10, 60);
+
+    // Mostrar macaco se estiver ativo
+    if (mostrarMacaco) {
+      push();
+      translate(50, height - 50); // Posição no canto inferior esquerdo
+      rotate(anguloMacaco);
+      imageMode(CENTER);
+      image(macacoImg, 0, 0, 80, 80);
+      pop();
+    }
+
+  } else {
+    fill(0, 100, 200);
+    rect(0, 0, width, height);
+    fill(255);
+    textAlign(CENTER, CENTER);
+    textSize(36);
+    text("Fim de Jogo!", width / 2, height / 2 - 40);
+    textSize(28);
+    text("Você estourou " + pontos + " bolha(s)", width / 2, height / 2);
+    textSize(20);
+    text("Clique para jogar novamente", width / 2, height / 2 + 60);
+  }
+}
+
+function mousePressed() {
+  if (!jogoAtivo) {
+    reiniciarJogo();
     return;
   }
 
-  background(0, 0, 50);
-  subPos.x = constrain(subPos.x, 25, width - 25);
-  subPos.y = constrain(subPos.y, 15, height - 15);
-
-  fill(0, 40, 40);
-  for (let i = 0; i < obstacles.length; i++) {
-    if (obstacles[i].type !== 'moving') {
-      rect(obstacles[i].x, obstacles[i].y, obstacles[i].w, obstacles[i].h);
-    } else {
-      fill(40, 0, 0);
-      obstacles[i].pos.x += obstacles[i].speed * obstacles[i].direction;
-      if (obstacles[i].pos.x <= 50 || obstacles[i].pos.x >= width - 50) {
-        obstacles[i].direction *= -1;
+  let acertou = false;
+  for (let i = 0; i < bolhas.length; i++) {
+    if (bolhas[i].verificarClique(mouseX, mouseY)) {
+      if (bolhas[i].tipo === 'vermelha') {
+        vidas--;
+        if (vidas <= 0) jogoAtivo = false;
+      } else {
+        bolhas[i].estourar();
+        if (bolhas[i].tipo === 'azul') {
+          pontos += 2;
+        } else if (bolhas[i].tipo === 'normal') {
+          pontos++;
+        }
+        
+        // Ativa o macaco quando uma bolha é estourada
+        mostrarMacaco = true;
+        macacoTempo = 30; // Mostra por 0.5 segundos (60 fps)
+        // Calcula o ângulo entre o macaco e o mouse
+        let macacoX = 50; // Posição X do macaco
+        let macacoY = height - 50; // Posição Y do macaco
+        anguloMacaco = atan2(mouseY - macacoY, mouseX - macacoX);
       }
-      ellipse(obstacles[i].pos.x, obstacles[i].pos.y, obstacles[i].size);
+      acertou = true;
+      break;
     }
   }
 
-  fill(255);
-  beginShape();
-  vertex(400, height);
-  vertex(580, height);
-  vertex(550, height - 100);
-  vertex(150, height - 100);
-  endShape();
+  if (!acertou) {
+    vidas--;
+    if (vidas <= 0) jogoAtivo = false;
+  }
+}
 
-  imageMode(CENTER);
-  image(subImg, subPos.x, subPos.y, 50, 30);
+function reiniciarJogo() {
+  pontos = 0;
+  vidas = 3;
+  jogoAtivo = true;
+  bolhas = [];
+  explosoes = [];
+  congelado = false;
+  congelarTempo = 0;
+  bolhaTamanhoMultiplicador = 1;
+  tamanhoMultiplicadorTempo = 0;
 
-  if (keyIsDown(UP_ARROW)) {
-    subVel.y = -2;
-  } else if (keyIsDown(DOWN_ARROW)) {
-    subVel.y = 2;
-  } else {
-    subVel.y = 0;
+  for (let i = 0; i < 10; i++) {
+    bolhas.push(new Bolha(escolherTipoBolha()));
+  }
+}
+
+// Conta quantas bolhas normais estão no array
+function contarNormais() {
+  let count = 0;
+  for (let b of bolhas) {
+    if (b.tipo === 'normal') count++;
+  }
+  return count;
+}
+
+// Escolhe o tipo da bolha considerando probabilidade e equilíbrio
+function escolherTipoBolha() {
+  // Probabilidades base para cada tipo
+  let prob = random();
+  if (prob < 0.15) return 'vermelha';    // 15% vermelha (erra = perde vida)
+  else if (prob < 0.25) return 'azul';   // 10% azul (pontos extras)
+  else if (prob < 0.30) return 'verde';  // 5% verde (vida extra)
+  else if (prob < 0.35) return 'roxa';   // 5% roxa (congela)
+  else if (prob < 0.40) return 'amarela';// 5% amarela (aumenta tamanho)
+  else return 'normal';                   // 60% normal
+}
+
+class Bolha {
+  constructor(tipo = 'normal') {
+    this.x = random(width);
+    this.y = random(height);
+
+
+    let minR = max(10, 50 - pontos * 0.5);
+    this.r = random(minR, minR + 20) * bolhaTamanhoMultiplicador;
+
+    let velocidadeMax = 1 + pontos * 0.1;
+    this.vx = random(-velocidadeMax, velocidadeMax);
+    this.vy = random(-velocidadeMax, velocidadeMax);
+
+    this.estourada = false;
+    this.tipo = tipo;
   }
 
-  if (keyIsDown(LEFT_ARROW)) {
-    subVel.x = -2;
-  } else if (keyIsDown(RIGHT_ARROW)) {
-    subVel.x = 2;
-  } else {
-    subVel.x = 0;
-  }
-
-  subPos.add(subVel);
-
-  for (let i = 0; i < obstacles.length; i++) {
-    if (obstacles[i].type !== 'moving') {
-      if (collidesWithWall(subPos, obstacles[i])) {
-        resetSub();
-      }
-    } else {
-      let d = dist(subPos.x, subPos.y, obstacles[i].pos.x, obstacles[i].pos.y);
-      if (d < 25 + obstacles[i].size / 2) {
-        resetSub();
-      }
+  mover() {
+    this.x += this.vx;
+    this.y += this.vy;
+    if (this.x < 0) {
+      this.x = 0;
+      this.vx *= -1;
+    }
+    if (this.x > width) {
+      this.x = width;
+      this.vx *= -1;
+    }
+    if (this.y < 0) {
+      this.y = 0;
+      this.vy *= -1;
+    }
+    if (this.y > height) {
+      this.y = height;
+      this.vy *= -1;
     }
   }
 
-  if (subPos.x > 150 && subPos.x < 580 && subPos.y > height - 120 && subPos.y < height - 80) {
-    if (!gifDisplayed) {
-      gif.show();
-      gif.position(width / 2 - gif.width / 2, height / 2 - gif.height / 2);
-      gifDisplayed = true;
+  mostrar() {
+    noStroke();
+    switch (this.tipo) {
+      case 'vermelha':
+        fill(255, 0, 0, 200);
+        break;
+      case 'azul':
+        fill(0, 0, 255, 200);
+        break;
+      case 'verde':
+        fill(0, 255, 0, 200);
+        break;
+      case 'roxa':
+        fill(128, 0, 128, 200);
+        break;
+      case 'amarela':
+        fill(255, 255, 0, 200);
+        break;
+      default:
+        fill(255, 255, 255, 100);
     }
-  } else {
-    if (gifDisplayed) {
-      gif.hide();
-      gifDisplayed = false;
-    }
+    ellipse(this.x, this.y, this.r * 2);
   }
 
-  // Contador de mortes
-  fill(255);
-  textSize(20);
-  textAlign(LEFT, TOP);
-  text(`Mortes: ${deathCount}`, 10, 10);
-}
+  verificarClique(mx, my) {
+    let d = dist(mx, my, this.x, this.y);
+    return d < this.r;
+  }
 
-function mortesDemais() {
-
-}
-
-function setupGame() {
-  subPos = createVector(width / 2, 0);
-  subVel = createVector(0, 0);
-  obstacles = [];
-
-  obstacles.push(createWall(10, 90, 320, 20));
-  obstacles.push(createWall(250, 180, 20, 300));
-  obstacles.push(createWall(120, 180, 20, 300));
-  obstacles.push(createWall(410, 90, 200, 20));
-  obstacles.push(createWall(250, 180, 200, 20));
-  obstacles.push(createWall(10, 500, 90, 20));
-
-  for (let i = 0; i < 6; i++) {
-    let x = random(100, width - 100);
-    let y = random(100, height - 200);
-    let size = random(15, 25);
-    let speed = random(1, 4);
-    obstacles.push({
-      pos: createVector(x, y),
-      size: size,
-      speed: speed,
-      direction: random() > 0.5 ? 1 : -1,
-      type: 'moving'
-    });
+  estourar() {
+    this.estourada = true;
   }
 }
 
-function showStartScreen() {
-  background(0);
-  fill(255);
-  textAlign(CENTER, CENTER);
-  textSize(48);
-  text("A FENDA DE BRITO", width / 2, height / 2 - 50);
-  textSize(20);
-  text("PRESSIONE ENTER PARA COMEÇAR", width / 2, height / 2 + 30);
-}
-
-function keyPressed() {
-  if (!gameStarted && keyCode === ENTER) {
-    gameStarted = true;
-  }
-}
-
-function createWall(x, y, w, h) {
-  return { x, y, w, h, type: 'static' };
-}
-
-function collidesWithWall(subPos, wall) {
-  let subLeft = subPos.x - 25;
-  let subRight = subPos.x + 25;
-  let subTop = subPos.y - 15;
-  let subBottom = subPos.y + 15;
-
-  let wallLeft = wall.x;
-  let wallRight = wall.x + wall.w;
-  let wallTop = wall.y;
-  let wallBottom = wall.y + wall.h;
-
-  return !(subRight < wallLeft || subLeft > wallRight || subBottom < wallTop || subTop > wallBottom);
-}
-
-function resetSub() {
-  subPos = createVector(width / 2, 0);
-  deathCount++;
-  resetMovingObstacles();
-}
-
-function resetMovingObstacles() {
-  for (let i = 0; i < obstacles.length; i++) {
-    if (obstacles[i].type === 'moving') {
-      obstacles[i].pos.x = random(100, width - 100);
-      obstacles[i].pos.y = random(100, height - 200);
-      obstacles[i].size = random(15, 25);
-      obstacles[i].speed = random(3, 7);
-      obstacles[i].direction = random() > 0.5 ? 1 : -1;
+class Explosao {
+  constructor(x, y, tamanho) {
+    this.x = x;
+    this.y = y;
+    this.tamanho = tamanho;
+    this.tempo = 20;
+    this.particulas = [];
+    for (let i = 0; i < 15; i++) {
+      let ang = random(TWO_PI);
+      let vel = random(2, 5);
+      this.particulas.push({
+        x: x,
+        y: y,
+        vx: cos(ang) * vel,
+        vy: sin(ang) * vel,
+        alpha: 255
+      });
     }
+  }
+
+  atualizar() {
+    this.tempo--;
+    for (let p of this.particulas) {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.alpha -= 10;
+    }
+  }
+
+  mostrar() {
+    noStroke();
+    for (let p of this.particulas) {
+      fill(255, 255, 255, p.alpha);
+      ellipse(p.x, p.y, 8);
+    }
+  }
+
+  acabou() {
+    return this.tempo <= 0;
   }
 }
