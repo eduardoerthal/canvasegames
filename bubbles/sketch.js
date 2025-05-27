@@ -17,7 +17,7 @@ let mostrarMacaco = true;
 let macacoTempo = 0;
 
 function preload() {
-  macacoImg = loadImage('macacotiro2.png');
+  macacoImg = loadImage('macacotiro.png');
 }
 
 function setup() {
